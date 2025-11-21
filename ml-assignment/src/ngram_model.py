@@ -1,42 +1,70 @@
 import random
+import math
+from collections import defaultdict
+
 
 class TrigramModel:
     def __init__(self):
-        """
-        Initializes the TrigramModel.
-        """
-        # TODO: Initialize any data structures you need to store the n-gram counts.
-       
-        pass
+        self.trigram_counts = defaultdict(lambda: defaultdict(int))
+        self.bigram_counts = defaultdict(int)
+        self.vocab = set()
 
-    def fit(self, text):
+    def train(self, text):
         """
-        Trains the trigram model on the given text.
-
-        Args:
-            text (str): The text to train the model on.
+        Train the trigram model on list of tokens.
         """
-        # TODO: Implement the training logic.
-        # This will involve:
-        # 1. Cleaning the text (e.g., converting to lowercase, removing punctuation).
-        # 2. Tokenizing the text into words.
-        # 3. Padding the text with start and end tokens.
-        # 4. Counting the trigrams.
-        pass
+        for i in range(len(text) - 2):
+            w1, w2, w3 = text[i], text[i+1], text[i+2]
+            self.trigram_counts[(w1, w2)][w3] += 1
+            self.bigram_counts[(w1, w2)] += 1
+            self.vocab.update([w1, w2, w3])
 
-    def generate(self, max_length=50):
+    def get_trigram_prob(self, w1, w2, w3):
         """
-        Generates new text using the trained trigram model.
-
-        Args:
-            max_length (int): The maximum length of the generated text.
-
-        Returns:
-            str: The generated text.
+        Return probability of w3 given w1, w2.
+        Add-1 smoothing is used.
         """
-        # TODO: Implement the generation logic.
-        # This will involve:
-        # 1. Starting with the start tokens.
-        # 2. Probabilistically choosing the next word based on the current context.
-        # 3. Repeating until the end token is generated or the maximum length is reached.
-        pass
+        vocab_size = len(self.vocab)
+        trigram_count = self.trigram_counts[(w1, w2)][w3]
+        bigram_count = self.bigram_counts[(w1, w2)]
+
+        return (trigram_count + 1) / (bigram_count + vocab_size)
+
+    def generate_next_word(self, w1, w2):
+        """
+        Generate the next word based on trigram distribution.
+        """
+        candidates = self.trigram_counts[(w1, w2)]
+        if not candidates:
+            return random.choice(list(self.vocab))
+
+        words = []
+        probs = []
+
+        vocab_size = len(self.vocab)
+        total = self.bigram_counts[(w1, w2)] + vocab_size
+
+        for word in self.vocab:
+            count = candidates[word]
+            words.append(word)
+            probs.append((count + 1) / total)
+
+        return random.choices(words, probs)[0]
+
+    def perplexity(self, text):
+        """
+        Compute perplexity over a list of tokens.
+        """
+        log_prob_sum = 0
+        N = len(text) - 2
+        vocab_size = len(self.vocab)
+
+        for i in range(N):
+            w1, w2, w3 = text[i], text[i+1], text[i+2]
+            trigram_count = self.trigram_counts[(w1, w2)][w3]
+            bigram_count = self.bigram_counts[(w1, w2)]
+
+            prob = (trigram_count + 1) / (bigram_count + vocab_size)
+            log_prob_sum += math.log(prob)
+
+        return math.exp(-log_prob_sum / N)
